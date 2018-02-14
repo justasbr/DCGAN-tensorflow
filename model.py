@@ -85,13 +85,14 @@ class DCGAN(object):
             tf.float32, [self.batch_size] + image_dims, name='real_images')
 
         inputs = self.inputs
+        self.grayscale_input = tf.placeholder(tf.float32, [self.batch_size, 64, 64, 1], name='grayscale_input')
 
         self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
         self.z_sum = histogram_summary("z", self.z)
 
-        self.G = self.generator(self.z, self.y)
+        self.G = self.generator(self.grayscale_input)
         self.D, self.D_logits = self.discriminator(inputs, self.y, reuse=False)
-        self.sampler = self.sampler(self.z, self.y)
+        self.sampler = self.sampler(self.grayscale_input)
         self.D_, self.D_logits_ = self.discriminator(self.G, self.y, reuse=True)
 
         self.d_sum = histogram_summary("d", self.D)
@@ -99,10 +100,7 @@ class DCGAN(object):
         self.G_sum = image_summary("G", self.G)
 
         def sigmoid_cross_entropy_with_logits(x, y):
-            try:
-                return tf.nn.sigmoid_cross_entropy_with_logits(logits=x, labels=y)
-            except:
-                return tf.nn.sigmoid_cross_entropy_with_logits(logits=x, targets=y)
+            return tf.nn.sigmoid_cross_entropy_with_logits(logits=x, labels=y)
 
         self.d_loss_real = tf.reduce_mean(
             sigmoid_cross_entropy_with_logits(self.D_logits, tf.ones_like(self.D)))
@@ -127,9 +125,9 @@ class DCGAN(object):
         self.saver = tf.train.Saver()
 
     def train(self, config):
-        d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
+        d_train_opt = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
             .minimize(self.d_loss, var_list=self.d_vars)
-        g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
+        g_train_opt = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
             .minimize(self.g_loss, var_list=self.g_vars)
         try:
             tf.global_variables_initializer().run()
@@ -165,7 +163,7 @@ class DCGAN(object):
             counter = checkpoint_counter
             print(" [*] Load SUCCESS")
         else:
-            print(" [!] Load failed...")
+            print(" [!] Checkpoint not found...")
 
         for epoch in xrange(config.epoch):
             self.data = glob(os.path.join(
@@ -185,33 +183,37 @@ class DCGAN(object):
 
                 batch_grayscale = [rgb2gray(color_img) for color_img in batch]
 
-                batch_images = np.array(batch).astype(np.float32)
-                batch_images_grayscale = np.array(batch_grayscale).astype(np.float32)
+                batch_images = np.array(batch).astype(np.float32)  # (BSIZE, 64,64,3)
+                batch_images_grayscale = np.array(batch_grayscale)
+                batch_images_grayscale = np.expand_dims(batch_images_grayscale, axis=3).astype(
+                    np.float32)  # (BSIZE,64,64,1)
 
-                print("batch_images", batch_images.shape())
-                print("batch_images_grayscale", batch_images_grayscale.shape())
+                batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]).astype(np.float32)
 
-                batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]) \
-                    .astype(np.float32)
+                print("G", batch_images_grayscale.shape, batch_images_grayscale.dtype)
 
                 # Update D network
-                _, summary_str = self.sess.run([d_optim, self.d_sum],
-                                               feed_dict={self.inputs: batch_images, self.z: batch_z})
+                _, summary_str = self.sess.run([d_train_opt, self.d_sum],
+                                               feed_dict={self.inputs: batch_images,
+                                                          self.z: batch_z,
+                                                          self.grayscale_input: batch_images_grayscale})
                 self.writer.add_summary(summary_str, counter)
 
                 # Update G network
-                _, summary_str = self.sess.run([g_optim, self.g_sum],
-                                               feed_dict={self.z: batch_z})
+                _, summary_str = self.sess.run([g_train_opt, self.g_sum],
+                                               feed_dict={self.z: batch_z,
+                                                          self.grayscale_input: batch_images_grayscale})
                 self.writer.add_summary(summary_str, counter)
 
-                # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
-                _, summary_str = self.sess.run([g_optim, self.g_sum],
-                                               feed_dict={self.z: batch_z})
+                # Run g_train_opt twice to make sure that d_loss does not go to zero (different from paper)
+                _, summary_str = self.sess.run([g_train_opt, self.g_sum],
+                                               feed_dict={self.z: batch_z,
+                                                          self.grayscale_input: batch_images_grayscale})
                 self.writer.add_summary(summary_str, counter)
 
-                errD_fake = self.d_loss_fake.eval({self.z: batch_z})
-                errD_real = self.d_loss_real.eval({self.inputs: batch_images})
-                errG = self.g_loss.eval({self.z: batch_z})
+                errD_fake = self.d_loss_fake.eval({self.z: batch_z, self.grayscale_input: batch_images_grayscale})
+                errD_real = self.d_loss_real.eval({self.inputs: batch_images, self.grayscale_input: batch_images_grayscale})
+                errG = self.g_loss.eval({self.z: batch_z, self.grayscale_input: batch_images_grayscale})
 
                 counter += 1
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
@@ -249,67 +251,77 @@ class DCGAN(object):
 
             return tf.nn.sigmoid(h4), h4
 
-    def generator(self, z, y=None):
+    def generator(self, grayscale):
         with tf.variable_scope("generator") as scope:
-            s_h, s_w = self.output_height, self.output_width
-            s_h2, s_w2 = conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
-            s_h4, s_w4 = conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
-            s_h8, s_w8 = conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
-            s_h16, s_w16 = conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2)
+            # s_h, s_w = self.output_height, self.output_width
+            # s_h2, s_w2 = conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
+            # s_h4, s_w4 = conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
+            # s_h8, s_w8 = conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
+            # s_h16, s_w16 = conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2)
+
+            # return tf.nn.conv2d(grayscale, filter=)
+
+            return conv2d(input_=grayscale, output_dim=3, k_h=1, k_w=1, d_h=1, d_w=1, name='g_conv1')
+
+
+            # rgb = tf.concat([grayscale, grayscale, grayscale], 3)
+            # return tf.nn.relu(rgb)
+
 
             # project `z` and reshape
-            self.z_, self.h0_w, self.h0_b = linear(
-                z, self.gf_dim * 8 * s_h16 * s_w16, 'g_h0_lin', with_w=True)
+            # self.z_, self.h0_w, self.h0_b = linear(
+            #     z, self.gf_dim * 8 * s_h16 * s_w16, 'g_h0_lin', with_w=True)
+            #
+            # self.h0 = tf.reshape(
+            #     self.z_, [-1, s_h16, s_w16, self.gf_dim * 8])
+            # h0 = tf.nn.relu(self.g_bn0(self.h0))
+            #
+            # self.h1, self.h1_w, self.h1_b = deconv2d(
+            #     h0, [self.batch_size, s_h8, s_w8, self.gf_dim * 4], name='g_h1', with_w=True)
+            # h1 = tf.nn.relu(self.g_bn1(self.h1))
+            #
+            # h2, self.h2_w, self.h2_b = deconv2d(
+            #     h1, [self.batch_size, s_h4, s_w4, self.gf_dim * 2], name='g_h2', with_w=True)
+            # h2 = tf.nn.relu(self.g_bn2(h2))
+            #
+            # h3, self.h3_w, self.h3_b = deconv2d(
+            #     h2, [self.batch_size, s_h2, s_w2, self.gf_dim * 1], name='g_h3', with_w=True)
+            # h3 = tf.nn.relu(self.g_bn3(h3))
+            #
+            # h4, self.h4_w, self.h4_b = deconv2d(
+            #     h3, [self.batch_size, s_h, s_w, self.c_dim], name='g_h4', with_w=True)
+            # return tf.nn.tanh(h4) #[-1 to 1]
 
-            self.h0 = tf.reshape(
-                self.z_, [-1, s_h16, s_w16, self.gf_dim * 8])
-            h0 = tf.nn.relu(self.g_bn0(self.h0))
-
-            self.h1, self.h1_w, self.h1_b = deconv2d(
-                h0, [self.batch_size, s_h8, s_w8, self.gf_dim * 4], name='g_h1', with_w=True)
-            h1 = tf.nn.relu(self.g_bn1(self.h1))
-
-            h2, self.h2_w, self.h2_b = deconv2d(
-                h1, [self.batch_size, s_h4, s_w4, self.gf_dim * 2], name='g_h2', with_w=True)
-            h2 = tf.nn.relu(self.g_bn2(h2))
-
-            h3, self.h3_w, self.h3_b = deconv2d(
-                h2, [self.batch_size, s_h2, s_w2, self.gf_dim * 1], name='g_h3', with_w=True)
-            h3 = tf.nn.relu(self.g_bn3(h3))
-
-            h4, self.h4_w, self.h4_b = deconv2d(
-                h3, [self.batch_size, s_h, s_w, self.c_dim], name='g_h4', with_w=True)
-
-            return tf.nn.tanh(h4)
-
-    def sampler(self, z, y=None):
+    def sampler(self, grayscale):
         with tf.variable_scope("generator") as scope:
             scope.reuse_variables()
 
-            s_h, s_w = self.output_height, self.output_width
-            s_h2, s_w2 = conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
-            s_h4, s_w4 = conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
-            s_h8, s_w8 = conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
-            s_h16, s_w16 = conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2)
+            return tf.concat([grayscale, grayscale, grayscale], 3)
 
-            # project `z` and reshape
-            h0 = tf.reshape(
-                linear(z, self.gf_dim * 8 * s_h16 * s_w16, 'g_h0_lin'),
-                [-1, s_h16, s_w16, self.gf_dim * 8])
-            h0 = tf.nn.relu(self.g_bn0(h0, train=False))
-
-            h1 = deconv2d(h0, [self.batch_size, s_h8, s_w8, self.gf_dim * 4], name='g_h1')
-            h1 = tf.nn.relu(self.g_bn1(h1, train=False))
-
-            h2 = deconv2d(h1, [self.batch_size, s_h4, s_w4, self.gf_dim * 2], name='g_h2')
-            h2 = tf.nn.relu(self.g_bn2(h2, train=False))
-
-            h3 = deconv2d(h2, [self.batch_size, s_h2, s_w2, self.gf_dim * 1], name='g_h3')
-            h3 = tf.nn.relu(self.g_bn3(h3, train=False))
-
-            h4 = deconv2d(h3, [self.batch_size, s_h, s_w, self.c_dim], name='g_h4')
-
-            return tf.nn.tanh(h4)
+            # s_h, s_w = self.output_height, self.output_width
+            # s_h2, s_w2 = conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
+            # s_h4, s_w4 = conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
+            # s_h8, s_w8 = conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
+            # s_h16, s_w16 = conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2)
+            #
+            # # project `z` and reshape
+            # h0 = tf.reshape(
+            #     linear(z, self.gf_dim * 8 * s_h16 * s_w16, 'g_h0_lin'),
+            #     [-1, s_h16, s_w16, self.gf_dim * 8])
+            # h0 = tf.nn.relu(self.g_bn0(h0, train=False))
+            #
+            # h1 = deconv2d(h0, [self.batch_size, s_h8, s_w8, self.gf_dim * 4], name='g_h1')
+            # h1 = tf.nn.relu(self.g_bn1(h1, train=False))
+            #
+            # h2 = deconv2d(h1, [self.batch_size, s_h4, s_w4, self.gf_dim * 2], name='g_h2')
+            # h2 = tf.nn.relu(self.g_bn2(h2, train=False))
+            #
+            # h3 = deconv2d(h2, [self.batch_size, s_h2, s_w2, self.gf_dim * 1], name='g_h3')
+            # h3 = tf.nn.relu(self.g_bn3(h3, train=False))
+            #
+            # h4 = deconv2d(h3, [self.batch_size, s_h, s_w, self.c_dim], name='g_h4')
+            #
+            # return tf.nn.tanh(h4)
 
     @property
     def model_dir(self):
