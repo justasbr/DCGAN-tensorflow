@@ -50,6 +50,7 @@ class DCGAN(object):
         self.d_bn1 = batch_norm(name='d_bn1')
         self.d_bn2 = batch_norm(name='d_bn2')
         self.d_bn3 = batch_norm(name='d_bn3')
+        self.d_bn4 = batch_norm(name='d_bn4')
 
         self.g_bn0 = batch_norm(name='g_bn0')
         self.g_bn1 = batch_norm(name='g_bn1')
@@ -239,22 +240,23 @@ class DCGAN(object):
             if reuse:
                 scope.reuse_variables()
 
-            images_concat = tf.concat([images_rgb, images_grayscale], axis=3)
+            images_concat = tf.concat([images_rgb, images_grayscale], axis=3) #(B, 64, 64, 4)
 
-            # h0 = lrelu(conv2d(images_concat, self.df_dim, name='d_h0_conv'))
-            # h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim * 2, name='d_h1_conv')))
-            # h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim * 4, name='d_h2_conv')))
-            # h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim * 8, name='d_h3_conv')))
-            # h4 = linear(tf.reshape(h3, [self.batch_size, -1]), 1, 'd_h4_lin')
+            d1 = lrelu(self.d_bn1(conv2d(images_concat, output_dim=64, name="d_conv1"))) #(B, 32, 32, 64)
 
-            output = conv2d(images_concat, output_dim=1, k_h=64, k_w=64, d_h=1, d_w=1, name="d_conv1")
-            output = tf.reshape(output, [self.batch_size, -1])
+            d2 = lrelu(self.d_bn2(conv2d(d1, output_dim=128, name="d_conv2"))) #(B, 16, 16, 128)
 
-            return tf.nn.sigmoid(output), output
+            d3 = lrelu(self.d_bn3(conv2d(d2, output_dim=256, name="d_conv3"))) #(B, 8, 8, 256)
+
+            d4 = lrelu(self.d_bn4(conv2d(d3, output_dim=512, name="d_conv4"))) #(B, 4, 4, 512)
+
+            d5 = linear(tf.reshape(d4, [self.batch_size, -1]), 1, 'd_linear')
+
+            return tf.nn.sigmoid(d5), d5
 
     def generator(self, grayscale):
         with tf.variable_scope("generator") as scope:
-            return conv2d(input_=grayscale, output_dim=3, k_h=1, k_w=1, d_h=1, d_w=1, name='g_conv1')
+            return conv2d(input_=grayscale, output_dim=3, kernel_h=1, kernel_w=1, stride_h=1, stride_w=1, name='g_conv1')
 
     def sampler(self, grayscale):
         with tf.variable_scope("generator") as scope:
