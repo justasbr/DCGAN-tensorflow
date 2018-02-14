@@ -242,8 +242,6 @@ class DCGAN(object):
             if reuse:
                 scope.reuse_variables()
 
-            assert not self.y_dim
-
             h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
             h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim * 2, name='d_h1_conv')))
             h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim * 4, name='d_h2_conv')))
@@ -254,7 +252,6 @@ class DCGAN(object):
 
     def generator(self, z, y=None):
         with tf.variable_scope("generator") as scope:
-            assert not self.y_dim
 
             s_h, s_w = self.output_height, self.output_width
             s_h2, s_w2 = conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
@@ -290,7 +287,6 @@ class DCGAN(object):
     def sampler(self, z, y=None):
         with tf.variable_scope("generator") as scope:
             scope.reuse_variables()
-            assert not self.y_dim
 
             s_h, s_w = self.output_height, self.output_width
             s_h2, s_w2 = conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
