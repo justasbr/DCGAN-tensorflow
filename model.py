@@ -6,6 +6,7 @@ from glob import glob
 import tensorflow as tf
 import numpy as np
 from six.moves import xrange
+from skimage.color import rgb2gray
 
 from ops import *
 from utils import *
@@ -17,7 +18,7 @@ def conv_out_size_same(size, stride):
 
 class DCGAN(object):
     def __init__(self, sess, input_height=108, input_width=108, crop=True,
-                 batch_size=64, sample_num=64, output_height=64, output_width=64,
+                 batch_size=42, sample_num=64, output_height=64, output_width=64,
                  z_dim=100, gf_dim=64, df_dim=64, y_dim=None,
                  c_dim=3, dataset_name='default',
                  input_fname_pattern='*.jpg', checkpoint_dir=None, sample_dir=None):
@@ -85,8 +86,7 @@ class DCGAN(object):
 
         inputs = self.inputs
 
-        self.z = tf.placeholder(
-            tf.float32, [None, self.z_dim], name='z')
+        self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
         self.z_sum = histogram_summary("z", self.z)
 
         self.G = self.generator(self.z, self.y)
@@ -182,10 +182,14 @@ class DCGAN(object):
                               resize_width=self.output_width,
                               crop=self.crop,
                               grayscale=self.grayscale) for batch_file in batch_files]
-                if self.grayscale:
-                    batch_images = np.array(batch).astype(np.float32)[:, :, :, None]
-                else:
-                    batch_images = np.array(batch).astype(np.float32)
+
+                batch_grayscale = [rgb2gray(color_img) for color_img in batch]
+
+                batch_images = np.array(batch).astype(np.float32)
+                batch_images_grayscale = np.array(batch_grayscale).astype(np.float32)
+
+                print("batch_images", batch_images.shape())
+                print("batch_images_grayscale", batch_images_grayscale.shape())
 
                 batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]) \
                     .astype(np.float32)
@@ -247,7 +251,6 @@ class DCGAN(object):
 
     def generator(self, z, y=None):
         with tf.variable_scope("generator") as scope:
-
             s_h, s_w = self.output_height, self.output_width
             s_h2, s_w2 = conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
             s_h4, s_w4 = conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
