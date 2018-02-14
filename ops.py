@@ -64,22 +64,15 @@ def conv2d(input_, output_dim, kernel_h=3, kernel_w=3, stride_h=2, stride_w=2, s
         return conv
 
 
-def deconv2d(input_, output_shape,
-             k_h=5, kernel_w=5, stride_h=2, stride_w=2, stddev=0.02,
+def conv2d_transpose(input_, output_shape,
+             kernel_h=3, kernel_w=3, stride_h=2, stride_w=2, stddev=0.02,
              name="deconv2d", with_w=False):
     with tf.variable_scope(name):
         # filter : [height, width, output_channels, in_channels]
-        w = tf.get_variable('w', [k_h, kernel_w, output_shape[-1], input_.get_shape()[-1]],
+        w = tf.get_variable('w', [kernel_h, kernel_w, output_shape[-1], input_.get_shape()[-1]],
                             initializer=tf.random_normal_initializer(stddev=stddev))
 
-        try:
-            deconv = tf.nn.conv2d_transpose(input_, w, output_shape=output_shape,
-                                            strides=[1, stride_h, stride_w, 1])
-
-        # Support for verisons of TensorFlow before 0.7.0
-        except AttributeError:
-            deconv = tf.nn.deconv2d(input_, w, output_shape=output_shape,
-                                    strides=[1, stride_h, stride_w, 1])
+        deconv = tf.nn.conv2d_transpose(input_, w, output_shape=output_shape, strides=[1, stride_h, stride_w, 1])
 
         biases = tf.get_variable('biases', [output_shape[-1]], initializer=tf.constant_initializer(0.0))
         deconv = tf.reshape(tf.nn.bias_add(deconv, biases), deconv.get_shape())

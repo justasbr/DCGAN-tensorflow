@@ -51,6 +51,7 @@ class DCGAN(object):
         self.d_bn2 = batch_norm(name='d_bn2')
         self.d_bn3 = batch_norm(name='d_bn3')
         self.d_bn4 = batch_norm(name='d_bn4')
+        self.d_bn5 = batch_norm(name='d_bn5')
 
         self.g_bn0 = batch_norm(name='g_bn0')
         self.g_bn1 = batch_norm(name='g_bn1')
@@ -236,43 +237,57 @@ class DCGAN(object):
                     self.save(config.checkpoint_dir, counter)
 
     def discriminator(self, images_rgb, images_grayscale, reuse=False):
-        with tf.variable_scope("discriminator") as scope:
-            if reuse:
-                scope.reuse_variables()
+        with tf.variable_scope("discriminator", reuse=reuse) as scope:
+            images_concat = tf.concat([images_rgb, images_grayscale], axis=3)  # (B, 64, 64, 4)
 
-            images_concat = tf.concat([images_rgb, images_grayscale], axis=3) #(B, 64, 64, 4)
+            d1 = lrelu(self.d_bn1(conv2d(images_concat, output_dim=64, name="d_conv1")))  # (B, 32, 32, 64)
 
-            d1 = lrelu(self.d_bn1(conv2d(images_concat, output_dim=64, name="d_conv1"))) #(B, 32, 32, 64)
+            d2 = lrelu(self.d_bn2(conv2d(d1, output_dim=128, name="d_conv2")))  # (B, 16, 16, 128)
 
-            d2 = lrelu(self.d_bn2(conv2d(d1, output_dim=128, name="d_conv2"))) #(B, 16, 16, 128)
+            d3 = lrelu(self.d_bn3(conv2d(d2, output_dim=256, name="d_conv3")))  # (B, 8, 8, 256)
 
-            d3 = lrelu(self.d_bn3(conv2d(d2, output_dim=256, name="d_conv3"))) #(B, 8, 8, 256)
+            d4 = lrelu(self.d_bn4(conv2d(d3, output_dim=512, name="d_conv4")))  # (B, 4, 4, 512)
 
-            d4 = lrelu(self.d_bn4(conv2d(d3, output_dim=512, name="d_conv4"))) #(B, 4, 4, 512)
+            d5 = lrelu(self.d_bn5(conv2d(d4, output_dim=1024, name="d_conv5")))  # (B, 2, 2, 1024)
 
-            d5 = linear(tf.reshape(d4, [self.batch_size, -1]), 1, 'd_linear')
+            d6 = linear(tf.reshape(d5, [self.batch_size, -1]), 1, 'd_linear')
 
-            return tf.nn.sigmoid(d5), d5
+            return tf.nn.sigmoid(d6), d6
 
-    def generator(self, grayscale):
-        with tf.variable_scope("generator") as scope:
-            return conv2d(input_=grayscale, output_dim=3, kernel_h=1, kernel_w=1, stride_h=1, stride_w=1, name='g_conv1')
+    def generator(self, grayscale, reuse=False):
+        with tf.variable_scope("generator", reuse=reuse) as scope:
+            down1 = lrelu(conv2d(grayscale, output_dim=64, name='g_conv1'))  # (32,32,64)
+
+            down2 = lrelu(conv2d(down1, output_dim=128, name='g_conv2'))  # (16,16,128)
+
+            up1 = lrelu(
+                conv2d_transpose(down2, output_shape=[self.batch_size, 32, 32, 64], name="g_conv3"))  # (32,32, 64)
+            up1 = tf.concat([up1, down1], axis=3)
+
+            up2 = lrelu(conv2d_transpose(up1, output_shape=[self.batch_size, 64, 64, 3], name="g_conv4"))  # (64,64,3)
+            up2 = tf.concat([up2, grayscale], axis=3)  # 4 channels #(64,64,4)
+
+            output_rgb = lrelu(conv2d(up2, stride_h=1, stride_w=1, output_dim=3, name="g_conv5"))
+            return output_rgb
 
     def sampler(self, grayscale):
-        with tf.variable_scope("generator") as scope:
-            scope.reuse_variables()
-
-            return tf.concat([grayscale, grayscale, grayscale], 3)
-
-            # s_h, s_w = self.output_height, self.output_width
-            # s_h2, s_w2 = conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
-            # s_h4, s_w4 = conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
-            # s_h8, s_w8 = conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
-            # s_h16, s_w16 = conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2)
-            #
-            # h4 = deconv2d(h3, [self.batch_size, s_h, s_w, self.c_dim], name='g_h4')
-            #
-            # return tf.nn.tanh(h4)
+        return self.generator(grayscale, reuse=True)
+        # with tf.variable_scope("generator") as scope:
+        #     scope.reuse_variables()
+        #
+        #     down1 = lrelu(conv2d(grayscale, output_dim=64, name='g_conv1'))  # (32,32,64)
+        #
+        #     down2 = lrelu(conv2d(down1, output_dim=128, name='g_conv2'))  # (16,16,128)
+        #
+        #     up1 = lrelu(
+        #         conv2d_transpose(down2, output_shape=[self.batch_size, 32, 32, 64], name="g_conv3"))  # (32,32, 64)
+        #     up1 = tf.concat([up1, down1], axis=3)
+        #
+        #     up2 = lrelu(conv2d_transpose(up1, output_shape=[self.batch_size, 64, 64, 3], name="g_conv4"))  # (64,64,3)
+        #     up2 = tf.concat([up2, grayscale], axis=3)  # 4 channels #(64,64,4)
+        #
+        #     output_rgb = lrelu(conv2d(up2, stride_h=1, stride_w=1, output_dim=3, name="g_conv5"))
+        #     return output_rgb
 
     @property
     def model_dir(self):
