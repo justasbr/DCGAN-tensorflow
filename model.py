@@ -136,9 +136,9 @@ class DCGAN(object):
         g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
             .minimize(self.g_loss, var_list=self.g_vars)
         try:
-            tf.global_variables_initializer().run()
+            tf.global_variables_initializer().run(session=self.sess)
         except:
-            tf.initialize_all_variables().run()
+            tf.initialize_all_variables().run(session=self.sess)
 
         self.g_sum = merge_summary([self.z_sum, self.d__sum,
                                     self.G_sum, self.d_loss_fake_sum, self.g_loss_sum])
