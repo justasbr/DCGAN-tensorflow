@@ -290,7 +290,7 @@ class DCGAN(object):
             up5 = tf.concat([up5, grayscale], axis=3)  # 64,64,4
 
             output_rgb = conv2d(up5, stride_h=1, stride_w=1, output_dim=3, name="g_conv_final")
-            return tf.nn.tanh(output_rgb)
+            return tf.nn.sigmoid(output_rgb)
 
     def sampler(self, grayscale):
         return self.generator(grayscale, reuse=True)
