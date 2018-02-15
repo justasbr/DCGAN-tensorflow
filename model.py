@@ -193,9 +193,11 @@ class DCGAN(object):
 
                 batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]).astype(np.float32)
 
-                if np.random.rand() > 0.6: #miss with discriminator
+                if np.random.rand() > 0.6: #mess with discriminator
                     print("Messing")
-                    batch_images = self.generator(batch_images_grayscale, reuse=True)
+
+                    batch_images = self.sess.run(self.sampler, feed_dict={self.input_grayscale: batch_images_grayscale,
+                                                                          self.z: batch_z})
                 # Update D network
                 _, summary_str = self.sess.run([d_train_opt, self.d_sum],
                                                feed_dict={self.input_rgb: batch_images,
