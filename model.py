@@ -105,7 +105,7 @@ class DCGAN(object):
             sigmoid_cross_entropy_with_logits(self.D_logits_, tf.zeros_like(self.D_)))
         self.g_loss = tf.reduce_mean(tf.log(self.D_))
         self.g_distance = tf.reduce_mean(tf.abs(self.input_rgb - self.G))
-        self.g_loss += self.g_distance
+        self.g_loss += 100 * self.g_distance
         # tf.reduce_mean(
         # sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
 
