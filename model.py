@@ -105,9 +105,10 @@ class DCGAN(object):
             sigmoid_cross_entropy_with_logits(self.D_logits_, tf.zeros_like(self.D_)))
         self.g_loss = tf.reduce_mean(tf.log(self.D_))
         self.g_distance = tf.reduce_mean(tf.abs(self.input_rgb - self.G))
+
         self.g_l2_loss = tf.reduce_mean(tf.nn.l2_loss(self.input_rgb - self.G))
         self.g_loss += 100 * self.g_distance
-        self.g_loss += 1 * self.g_l2_loss
+        self.g_loss += 0.001 * self.g_l2_loss
         # tf.reduce_mean(
         # sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
 
@@ -201,7 +202,7 @@ class DCGAN(object):
                 #     print("Messing")
                 #
                 #     batch_images = self.sess.run(self.sampler, feed_dict={self.input_grayscale: batch_images_grayscale,
-                                                                          self.z: batch_z})
+                #                                                           self.z: batch_z})
                 # Update D network
                 _, summary_str = self.sess.run([d_train_opt, self.d_sum],
                                                feed_dict={self.input_rgb: batch_images,
@@ -284,7 +285,7 @@ class DCGAN(object):
             # up1 = lrelu(
             #     conv2d_transpose(down5, output_shape=[self.batch_size, 4, 4, 512], name="g_conv_up1"))  # (4,4,512)
             # up1 = tf.concat([up1, down4], axis=3)  # 4,4,1024
-
+            #
             # up2 = lrelu(
             #     conv2d_transpose(down4, output_shape=[self.batch_size, 8, 8, 256], name="g_conv_up2"))  # (r8,8,256)
             # up2 = tf.concat([up2, down3], axis=3)  # 8,8,512
