@@ -100,15 +100,31 @@ class DCGAN(object):
             return tf.nn.sigmoid_cross_entropy_with_logits(logits=x, labels=y)
 
         self.d_loss_real = tf.reduce_mean(
-            sigmoid_cross_entropy_with_logits(self.D_logits, tf.random_uniform(tf.shape(self.D), minval=0.90, maxval=1.0))) # tf.ones_like(self.D)))
+            sigmoid_cross_entropy_with_logits(self.D_logits,
+                                              tf.random_uniform(tf.shape(self.D),
+                                                                minval=0.9,
+                                                                maxval=1.0)))
         self.d_loss_fake = tf.reduce_mean(
-            sigmoid_cross_entropy_with_logits(self.D_logits_, tf.random_uniform(tf.shape(self.D_), minval=0.0, maxval=0.05))) #tf.zeros_like(self.D_)))
-        self.g_loss = tf.reduce_max(tf.log(self.D_))
-        # self.g_distance = tf.reduce_mean(tf.abs(self.input_rgb - self.G))
+            sigmoid_cross_entropy_with_logits(self.D_logits_,
+                                              tf.random_uniform(tf.shape(self.D_),
+                                                                minval=0.0,
+                                                                maxval=0.0)))
 
-        # self.g_l2_loss = tf.reduce_mean(tf.nn.l2_loss(self.input_rgb - self.G))
-        # self.g_loss += 50 * self.g_distance
-        self.g_loss += 0.05 * self.g_l2_loss
+        # self.g_loss = tf.reduce_max(tf.log(tf.constant(self.D_)))
+        self.g_loss = tf.reduce_mean(sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_logits_)))
+
+        lambda_A = 100
+        self.g_l1_loss = lambda_A * tf.reduce_mean(tf.abs(self.input_rgb - self.G))
+
+        # lambda_B = 0.001
+        # self.g_l2_loss = lambda_B * tf.reduce_mean(tf.nn.l2_loss(self.input_rgb - self.G))
+
+        # self.g_loss += self.g_l2_loss
+
+        self.g_loss += self.g_l1_loss
+        # self.g_loss += self.g_l2_loss
+
+        # self.g_loss += self.g_l2_loss
         # tf.reduce_mean(
         # sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
 
@@ -198,11 +214,11 @@ class DCGAN(object):
 
                 batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]).astype(np.float32)
 
-                if np.random.rand() > 0.95:  # mess with discriminator
-                    print("Messing")
+                # if np.random.rand() > 0.95:  # mess with discriminator
+                #     print("Messing")
                 #
-                    batch_images = self.sess.run(self.sampler, feed_dict={self.input_grayscale: batch_images_grayscale,
-                                                                          self.z: batch_z})
+                # batch_images = self.sess.run(self.sampler, feed_dict={self.input_grayscale: batch_images_grayscale,
+                #                                                       self.z: batch_z})
                 # Update D network
                 _, summary_str = self.sess.run([d_train_opt, self.d_sum],
                                                feed_dict={self.input_rgb: batch_images,
@@ -248,6 +264,10 @@ class DCGAN(object):
                                 self.input_rgb: sample_inputs_rgb
                             },
                         )
+                        # save_images(sample_inputs_rgb, image_manifold_size(sample_inputs_rgb.shape[0]),
+                        #             './{}/orig.png'.format(config.sample_dir))
+                        # print("Saved orig")
+
                         save_images(samples, image_manifold_size(samples.shape[0]),
                                     './{}/train_{:02d}_{:04d}.png'.format(config.sample_dir, epoch, idx))
                         print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss))
@@ -267,12 +287,12 @@ class DCGAN(object):
 
             d3 = lrelu(self.d_bn3(conv2d(d2, output_dim=256, name="d_conv3")))  # (B, 8, 8, 256)
 
-            # d4 = lrelu(self.d_bn4(conv2d(d3, output_dim=512, name="d_conv4")))  # (B, 4, 4, 512)
+            d4 = lrelu(self.d_bn4(conv2d(d3, output_dim=512, name="d_conv4")))  # (B, 4, 4, 512)
             # d5 = lrelu(self.d_bn5(conv2d(d4, output_dim=1024, name="d_conv5")))  # (B, 2, 2, 1024)
 
-            d6 = linear(tf.reshape(d3, [self.batch_size, -1]), 1, 'd_linear')
+            d_final = linear(tf.reshape(d4, [self.batch_size, -1]), 1, 'd_linear')
 
-            return tf.nn.sigmoid(d6), d6
+            return tf.nn.sigmoid(d_final), d_final
 
     def generator(self, grayscale, reuse=False):
         with tf.variable_scope("generator", reuse=reuse) as scope:
@@ -297,11 +317,12 @@ class DCGAN(object):
             up4 = lrelu(conv2d_transpose(up3, output_shape=[self.batch_size, 32, 32, 64], name="g_conv_up4"))
             up4 = tf.concat([up4, down1], axis=3)  # 32,32,128
 
-            up5 = lrelu(conv2d_transpose(up4, output_shape=[self.batch_size, 64, 64, 3], name="g_conv_up5"))
-            up5 = tf.concat([up5, grayscale], axis=3)  # 64,64,4
+            # up5 = lrelu(conv2d_transpose(up4, output_shape=[self.batch_size, 64, 64, 3], name="g_conv_up5"))
+            up5 = conv2d_transpose(up4, output_shape=[self.batch_size, 64, 64, 3], name="g_conv_up5")
+            # up5 = tf.concat([up5, grayscale], axis=3)  # 64,64,4
 
-            output_rgb = conv2d(up5, stride_h=1, stride_w=1, output_dim=3, name="g_conv_final")
-            return output_rgb
+            # output_rgb = conv2d(up5, kernel_w=1, kernel_h=1, stride_h=1, stride_w=1, output_dim=3, name="g_conv_final")
+            return up5
 
     def sampler(self, grayscale):
         return self.generator(grayscale, reuse=True)

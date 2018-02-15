@@ -77,6 +77,8 @@ def conv2d_transpose(input_, output_shape,
         biases = tf.get_variable('biases', [output_shape[-1]], initializer=tf.constant_initializer(0.0))
         deconv = tf.reshape(tf.nn.bias_add(deconv, biases), deconv.get_shape())
 
+        # deconv = tf.nn.dropout(deconv, keep_prob=0.8, name=name+"_dropout")
+
         if with_w:
             return deconv, w, biases
         else:
