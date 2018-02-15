@@ -107,8 +107,8 @@ class DCGAN(object):
         self.g_distance = tf.reduce_mean(tf.abs(self.input_rgb - self.G))
 
         self.g_l2_loss = tf.reduce_mean(tf.nn.l2_loss(self.input_rgb - self.G))
-        self.g_loss += 5 * self.g_distance
-        self.g_loss += 0.001 * self.g_l2_loss
+        self.g_loss += 50 * self.g_distance
+        self.g_loss += 0.01 * self.g_l2_loss
         # tf.reduce_mean(
         # sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
 
@@ -198,11 +198,11 @@ class DCGAN(object):
 
                 batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]).astype(np.float32)
 
-                # if np.random.rand() > 0.9:  # mess with discriminator
-                #     print("Messing")
+                if np.random.rand() > 0.95:  # mess with discriminator
+                    print("Messing")
                 #
-                    # batch_images = self.sess.run(self.sampler, feed_dict={self.input_grayscale: batch_images_grayscale,
-                    #                                                       self.z: batch_z})
+                    batch_images = self.sess.run(self.sampler, feed_dict={self.input_grayscale: batch_images_grayscale,
+                                                                          self.z: batch_z})
                 # Update D network
                 _, summary_str = self.sess.run([d_train_opt, self.d_sum],
                                                feed_dict={self.input_rgb: batch_images,
