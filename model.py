@@ -104,6 +104,8 @@ class DCGAN(object):
         self.d_loss_fake = tf.reduce_mean(
             sigmoid_cross_entropy_with_logits(self.D_logits_, tf.zeros_like(self.D_)))
         self.g_loss = tf.reduce_mean(tf.log(self.D_))
+        self.g_distance = tf.reduce_mean(tf.abs(self.input_rgb - self.G))
+        self.g_loss += self.g_distance
         # tf.reduce_mean(
         # sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
 
@@ -193,7 +195,7 @@ class DCGAN(object):
 
                 batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]).astype(np.float32)
 
-                if np.random.rand() > 0.9: #mess with discriminator
+                if np.random.rand() > 0.9:  # mess with discriminator
                     print("Messing")
 
                     batch_images = self.sess.run(self.sampler, feed_dict={self.input_grayscale: batch_images_grayscale,
@@ -208,19 +210,25 @@ class DCGAN(object):
                 # Update G network
                 _, summary_str = self.sess.run([g_train_opt, self.g_sum],
                                                feed_dict={self.z: batch_z,
-                                                          self.input_grayscale: batch_images_grayscale})
+                                                          self.input_grayscale: batch_images_grayscale,
+                                                          self.input_rgb: batch_images})
                 self.writer.add_summary(summary_str, counter)
 
                 # Run g_train_opt twice to make sure that d_loss does not go to zero (different from paper)
                 _, summary_str = self.sess.run([g_train_opt, self.g_sum],
                                                feed_dict={self.z: batch_z,
-                                                          self.input_grayscale: batch_images_grayscale})
+                                                          self.input_grayscale: batch_images_grayscale,
+                                                          self.input_rgb: batch_images})
                 self.writer.add_summary(summary_str, counter)
 
-                errD_fake = self.d_loss_fake.eval({self.z: batch_z, self.input_grayscale: batch_images_grayscale})
+                errD_fake = self.d_loss_fake.eval({self.z: batch_z,
+                                                   self.input_grayscale: batch_images_grayscale,
+                                                   self.input_rgb: batch_images})
                 errD_real = self.d_loss_real.eval(
                     {self.input_rgb: batch_images, self.input_grayscale: batch_images_grayscale})
-                errG = self.g_loss.eval({self.z: batch_z, self.input_grayscale: batch_images_grayscale})
+                errG = self.g_loss.eval({self.z: batch_z,
+                                         self.input_grayscale: batch_images_grayscale,
+                                         self.input_rgb: batch_images})
 
                 counter += 1
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
