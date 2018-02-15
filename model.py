@@ -107,8 +107,8 @@ class DCGAN(object):
         self.g_distance = tf.reduce_mean(tf.abs(self.input_rgb - self.G))
 
         self.g_l2_loss = tf.reduce_mean(tf.nn.l2_loss(self.input_rgb - self.G))
-        self.g_loss += 100 * self.g_distance
-        self.g_loss += 0.001 * self.g_l2_loss
+        self.g_loss += 50 * self.g_distance
+        self.g_loss += 0.01 * self.g_l2_loss
         # tf.reduce_mean(
         # sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
 
@@ -201,8 +201,8 @@ class DCGAN(object):
                 # if np.random.rand() > 0.9:  # mess with discriminator
                 #     print("Messing")
                 #
-                #     batch_images = self.sess.run(self.sampler, feed_dict={self.input_grayscale: batch_images_grayscale,
-                #                                                           self.z: batch_z})
+                    # batch_images = self.sess.run(self.sampler, feed_dict={self.input_grayscale: batch_images_grayscale,
+                    #                                                       self.z: batch_z})
                 # Update D network
                 _, summary_str = self.sess.run([d_train_opt, self.d_sum],
                                                feed_dict={self.input_rgb: batch_images,
@@ -279,19 +279,19 @@ class DCGAN(object):
             down1 = lrelu(conv2d(grayscale, output_dim=64, name='g_conv_down1'))  # (32,32,64)
             down2 = lrelu(conv2d(down1, output_dim=128, name='g_conv_down2'))  # (16,16,128)
             down3 = lrelu(conv2d(down2, output_dim=256, name='g_conv_down3'))  # (8,8,256)
-            # down4 = lrelu(conv2d(down3, output_dim=512, name='g_conv_down4'))  # (4,4,512)
-            # down5 = lrelu(conv2d(down4, output_dim=1024, name='g_conv_down5'))  # (2,2,1024)
+            down4 = lrelu(conv2d(down3, output_dim=512, name='g_conv_down4'))  # (4,4,512)
+            down5 = lrelu(conv2d(down4, output_dim=1024, name='g_conv_down5'))  # (2,2,1024)
 
-            # up1 = lrelu(
-            #     conv2d_transpose(down5, output_shape=[self.batch_size, 4, 4, 512], name="g_conv_up1"))  # (4,4,512)
-            # up1 = tf.concat([up1, down4], axis=3)  # 4,4,1024
+            up1 = lrelu(
+                conv2d_transpose(down5, output_shape=[self.batch_size, 4, 4, 512], name="g_conv_up1"))  # (4,4,512)
+            up1 = tf.concat([up1, down4], axis=3)  # 4,4,1024
             #
-            # up2 = lrelu(
-            #     conv2d_transpose(down4, output_shape=[self.batch_size, 8, 8, 256], name="g_conv_up2"))  # (r8,8,256)
-            # up2 = tf.concat([up2, down3], axis=3)  # 8,8,512
+            up2 = lrelu(
+                conv2d_transpose(up1, output_shape=[self.batch_size, 8, 8, 256], name="g_conv_up2"))  # (r8,8,256)
+            up2 = tf.concat([up2, down3], axis=3)  # 8,8,512
 
             up3 = lrelu(
-                conv2d_transpose(down3, output_shape=[self.batch_size, 16, 16, 128], name="g_conv_up3"))  # (16,16,128)
+                conv2d_transpose(up2, output_shape=[self.batch_size, 16, 16, 128], name="g_conv_up3"))  # (16,16,128)
             up3 = tf.concat([up3, down2], axis=3)  # 16,16,256
 
             up4 = lrelu(conv2d_transpose(up3, output_shape=[self.batch_size, 32, 32, 64], name="g_conv_up4"))
