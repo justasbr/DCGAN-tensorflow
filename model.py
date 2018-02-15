@@ -103,7 +103,7 @@ class DCGAN(object):
             sigmoid_cross_entropy_with_logits(self.D_logits, tf.ones_like(self.D)))
         self.d_loss_fake = tf.reduce_mean(
             sigmoid_cross_entropy_with_logits(self.D_logits_, tf.zeros_like(self.D_)))
-        self.g_loss = tf.reduce_mean(tf.log(self.D_))
+        self.g_loss = tf.reduce_mean(tf.log(self.D_logits_))
             # tf.reduce_mean(
             # sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
 
@@ -222,7 +222,7 @@ class DCGAN(object):
                       % (epoch, idx, batch_idxs,
                          time.time() - start_time, errD_fake + errD_real, errG))
 
-                if np.mod(counter, 100) == 1:
+                if np.mod(counter, 20) == 1:
                     try:
                         samples, d_loss, g_loss = self.sess.run(
                             [self.sampler, self.d_loss, self.g_loss],
