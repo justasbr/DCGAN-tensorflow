@@ -103,7 +103,7 @@ class DCGAN(object):
             sigmoid_cross_entropy_with_logits(self.D_logits, tf.ones_like(self.D)))
         self.d_loss_fake = tf.reduce_mean(
             sigmoid_cross_entropy_with_logits(self.D_logits_, tf.zeros_like(self.D_)))
-        self.g_loss = tf.reduce_mean(tf.log(self.D_logits_))
+        self.g_loss = tf.reduce_mean(tf.log(self.D_))
         # tf.reduce_mean(
         # sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
 
