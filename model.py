@@ -104,8 +104,8 @@ class DCGAN(object):
         self.d_loss_fake = tf.reduce_mean(
             sigmoid_cross_entropy_with_logits(self.D_logits_, tf.zeros_like(self.D_)))
         self.g_loss = tf.reduce_mean(tf.log(self.D_logits_))
-            # tf.reduce_mean(
-            # sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
+        # tf.reduce_mean(
+        # sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
 
         self.d_loss_real_sum = scalar_summary("d_loss_real", self.d_loss_real)
         self.d_loss_fake_sum = scalar_summary("d_loss_fake", self.d_loss_fake)
@@ -285,8 +285,8 @@ class DCGAN(object):
             up5 = lrelu(conv2d_transpose(up4, output_shape=[self.batch_size, 64, 64, 3], name="g_conv_up5"))
             up5 = tf.concat([up5, grayscale], axis=3)  # 64,64,4
 
-            output_rgb = lrelu(conv2d(up5, stride_h=1, stride_w=1, output_dim=3, name="g_conv_final"))
-            return output_rgb
+            output_rgb = conv2d(up5, stride_h=1, stride_w=1, output_dim=3, name="g_conv_final")
+            return tf.nn.tanh(output_rgb)
 
     def sampler(self, grayscale):
         return self.generator(grayscale, reuse=True)
