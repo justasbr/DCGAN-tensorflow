@@ -153,7 +153,6 @@ class DCGAN(object):
         sample_inputs_grayscale = np.array(sample_inputs_grayscale)
         sample_inputs_grayscale = np.expand_dims(sample_inputs_grayscale, axis=3).astype(np.float32)  # (BSIZE,64,64,1)
 
-
         if (self.grayscale):
             sample_inputs_rgb = np.array(sample).astype(np.float32)[:, :, :, None]
         else:
@@ -263,18 +262,31 @@ class DCGAN(object):
 
     def generator(self, grayscale, reuse=False):
         with tf.variable_scope("generator", reuse=reuse) as scope:
-            down1 = lrelu(conv2d(grayscale, output_dim=64, name='g_conv1'))  # (32,32,64)
-
-            down2 = lrelu(conv2d(down1, output_dim=128, name='g_conv2'))  # (16,16,128)
+            down1 = lrelu(conv2d(grayscale, output_dim=64, name='g_conv_down1'))  # (32,32,64)
+            down2 = lrelu(conv2d(down1, output_dim=128, name='g_conv_down2'))  # (16,16,128)
+            down3 = lrelu(conv2d(down2, output_dim=256, name='g_conv_down3'))  # (8,8,256)
+            down4 = lrelu(conv2d(down3, output_dim=512, name='g_conv_down4'))  # (4,4,512)
+            down5 = lrelu(conv2d(down4, output_dim=1024, name='g_conv_down5'))  # (2,2,1024)
 
             up1 = lrelu(
-                conv2d_transpose(down2, output_shape=[self.batch_size, 32, 32, 64], name="g_conv3"))  # (32,32, 64)
-            up1 = tf.concat([up1, down1], axis=3)
+                conv2d_transpose(down5, output_shape=[self.batch_size, 4, 4, 512], name="g_conv_up1"))  # (4,4,512)
+            up1 = tf.concat([up1, down4], axis=3)  # 4,4,1024
 
-            up2 = lrelu(conv2d_transpose(up1, output_shape=[self.batch_size, 64, 64, 3], name="g_conv4"))  # (64,64,3)
-            up2 = tf.concat([up2, grayscale], axis=3)  # 4 channels #(64,64,4)
+            up2 = lrelu(
+                conv2d_transpose(up1, output_shape=[self.batch_size, 8, 8, 256], name="g_conv_up2"))  # (8,8,256)
+            up2 = tf.concat([up2, down3], axis=3)  # 8,8,512
 
-            output_rgb = lrelu(conv2d(up2, stride_h=1, stride_w=1, output_dim=3, name="g_conv5"))
+            up3 = lrelu(
+                conv2d_transpose(up2, output_shape=[self.batch_size, 16, 16, 128], name="g_conv_up3"))  # (16,16,128)
+            up3 = tf.concat([up3, down2], axis=3)  # 16,16,256
+
+            up4 = lrelu(conv2d_transpose(up3, output_shape=[self.batch_size, 32, 32, 64], name="g_conv_up4"))
+            up4 = tf.concat([up4, down1], axis=3)  # 32,32,128
+
+            up5 = lrelu(conv2d_transpose(up4, output_shape=[self.batch_size, 64, 64, 3], name="g_conv_up5"))
+            up5 = tf.concat([up5, grayscale], axis=3)  # 64,64,4
+
+            output_rgb = lrelu(conv2d(up5, stride_h=1, stride_w=1, output_dim=3, name="g_conv_final"))
             return output_rgb
 
     def sampler(self, grayscale):
