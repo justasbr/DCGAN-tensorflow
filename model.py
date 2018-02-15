@@ -18,7 +18,7 @@ def conv_out_size_same(size, stride):
 
 class DCGAN(object):
     def __init__(self, sess, input_height=108, input_width=108, crop=True,
-                 batch_size=42, sample_num=64, output_height=64, output_width=64,
+                 batch_size=42, sample_num=42, output_height=64, output_width=64,
                  z_dim=100, gf_dim=64, df_dim=64, y_dim=None,
                  c_dim=3, dataset_name='default',
                  input_fname_pattern='*.jpg', checkpoint_dir=None, sample_dir=None):
@@ -148,10 +148,16 @@ class DCGAN(object):
                       resize_width=self.output_width,
                       crop=self.crop,
                       grayscale=self.grayscale) for sample_file in sample_files]
+
+        sample_inputs_grayscale = [rgb2gray(color_img) for color_img in sample]
+        sample_inputs_grayscale = np.array(sample_inputs_grayscale)
+        sample_inputs_grayscale = np.expand_dims(sample_inputs_grayscale, axis=3).astype(np.float32)  # (BSIZE,64,64,1)
+
+
         if (self.grayscale):
-            sample_inputs = np.array(sample).astype(np.float32)[:, :, :, None]
+            sample_inputs_rgb = np.array(sample).astype(np.float32)[:, :, :, None]
         else:
-            sample_inputs = np.array(sample).astype(np.float32)
+            sample_inputs_rgb = np.array(sample).astype(np.float32)
 
         counter = 1
         start_time = time.time()
@@ -178,9 +184,9 @@ class DCGAN(object):
                               crop=self.crop,
                               grayscale=self.grayscale) for batch_file in batch_files]
 
-                batch_grayscale = [rgb2gray(color_img) for color_img in batch]
-
                 batch_images = np.array(batch).astype(np.float32)  # (BSIZE, 64,64,3)
+
+                batch_grayscale = [rgb2gray(color_img) for color_img in batch]
                 batch_images_grayscale = np.array(batch_grayscale)
                 batch_images_grayscale = np.expand_dims(batch_images_grayscale, axis=3).astype(
                     np.float32)  # (BSIZE,64,64,1)
@@ -223,15 +229,16 @@ class DCGAN(object):
                         samples, d_loss, g_loss = self.sess.run(
                             [self.sampler, self.d_loss, self.g_loss],
                             feed_dict={
+                                self.input_grayscale: sample_inputs_grayscale,
                                 self.z: sample_z,
-                                self.input_rgb: sample_inputs,
+                                self.input_rgb: sample_inputs_rgb
                             },
                         )
                         save_images(samples, image_manifold_size(samples.shape[0]),
                                     './{}/train_{:02d}_{:04d}.png'.format(config.sample_dir, epoch, idx))
                         print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss))
-                    except:
-                        print("one pic error!...")
+                    except Exception as e:
+                        print("one pic error!...", e)
 
                 if np.mod(counter, 500) == 2:
                     self.save(config.checkpoint_dir, counter)
