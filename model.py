@@ -108,7 +108,7 @@ class DCGAN(object):
 
         # self.g_l2_loss = tf.reduce_mean(tf.nn.l2_loss(self.input_rgb - self.G))
         # self.g_loss += 50 * self.g_distance
-        # self.g_loss += 0.01 * self.g_l2_loss
+        self.g_loss += 0.05 * self.g_l2_loss
         # tf.reduce_mean(
         # sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
 
