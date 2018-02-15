@@ -193,7 +193,7 @@ class DCGAN(object):
 
                 batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]).astype(np.float32)
 
-                if np.random.rand() > 0.6: #mess with discriminator
+                if np.random.rand() > 0.9: #mess with discriminator
                     print("Messing")
 
                     batch_images = self.sess.run(self.sampler, feed_dict={self.input_grayscale: batch_images_grayscale,
@@ -256,11 +256,10 @@ class DCGAN(object):
 
             d3 = lrelu(self.d_bn3(conv2d(d2, output_dim=256, name="d_conv3")))  # (B, 8, 8, 256)
 
-            d4 = lrelu(self.d_bn4(conv2d(d3, output_dim=512, name="d_conv4")))  # (B, 4, 4, 512)
+            # d4 = lrelu(self.d_bn4(conv2d(d3, output_dim=512, name="d_conv4")))  # (B, 4, 4, 512)
+            # d5 = lrelu(self.d_bn5(conv2d(d4, output_dim=1024, name="d_conv5")))  # (B, 2, 2, 1024)
 
-            d5 = lrelu(self.d_bn5(conv2d(d4, output_dim=1024, name="d_conv5")))  # (B, 2, 2, 1024)
-
-            d6 = linear(tf.reshape(d5, [self.batch_size, -1]), 1, 'd_linear')
+            d6 = linear(tf.reshape(d3, [self.batch_size, -1]), 1, 'd_linear')
 
             return tf.nn.sigmoid(d6), d6
 
