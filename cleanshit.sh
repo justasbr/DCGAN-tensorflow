@@ -1,1 +1,1 @@
-rm -rf logs/* && rm -rf samples/* && rm -rf checkpoint/*
+rm -rf logs/* && rm -rf samples/* 

@@ -22,6 +22,9 @@ class DCGAN(object):
                  z_dim=100, gf_dim=64, df_dim=64, y_dim=None,
                  c_dim=3, dataset_name='default',
                  input_fname_pattern='*.jpg', checkpoint_dir=None, sample_dir=None):
+        if dataset_name == "imagenet":
+            input_fname_pattern = '*.JPEG'
+
         """
 
         Args:
@@ -62,7 +65,10 @@ class DCGAN(object):
         self.input_fname_pattern = input_fname_pattern
         self.checkpoint_dir = checkpoint_dir
 
-        self.data = glob(os.path.join("./data", self.dataset_name,"train", self.input_fname_pattern))
+        data_folder = os.path.join("./data", self.dataset_name,"train", self.input_fname_pattern)
+        print("folder", data_folder)
+        self.data = glob(data_folder)
+        print("DATA", len(self.data))
         imreadImg = imread(self.data[0])
         if len(imreadImg.shape) >= 3:  # check if image is a non-grayscale image by checking channel number
             self.c_dim = imread(self.data[0]).shape[-1]
@@ -70,6 +76,7 @@ class DCGAN(object):
             self.c_dim = 1
 
         self.grayscale = (self.c_dim == 1)
+        assert not self.grayscale
         self.build_model()
 
     def build_model(self):
@@ -212,6 +219,8 @@ class DCGAN(object):
                 batch_images_grayscale = np.expand_dims(batch_images_grayscale, axis=3).astype(
                     np.float32)  # (BSIZE,64,64,1)
 
+                assert batch_images_grayscale.shape == (config.batch_size, 64,64,1)
+
                 batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]).astype(np.float32)
 
                 # if np.random.rand() > 0.95:  # mess with discriminator
@@ -264,9 +273,9 @@ class DCGAN(object):
                                 self.input_rgb: sample_inputs_rgb
                             },
                         )
-                        # save_images(sample_inputs_rgb, image_manifold_size(sample_inputs_rgb.shape[0]),
-                        #             './{}/orig.png'.format(config.sample_dir))
-                        # print("Saved orig")
+                        save_images(sample_inputs_rgb, image_manifold_size(sample_inputs_rgb.shape[0]),
+                                    './{}/orig.png'.format(config.sample_dir))
+                        print("Saved orig")
 
                         save_images(samples, image_manifold_size(samples.shape[0]),
                                     './{}/train_{:02d}_{:04d}.png'.format(config.sample_dir, epoch, idx))
