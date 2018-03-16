@@ -21,7 +21,7 @@ from tqdm import tqdm
 from six.moves import urllib
 
 parser = argparse.ArgumentParser(description='Download dataset for DCGAN.')
-parser.add_argument('datasets', metavar='N', type=str, nargs='+', choices=['celebA', 'lsun', 'mnist'],
+parser.add_argument('datasets', metavar='N', type=str, nargs='+', choices=['celebA', 'lsun', 'mnist', 'food-101'],
            help='name of dataset to download [celebA, lsun, mnist]')
 
 def download(url, dirpath):
@@ -164,6 +164,26 @@ def download_mnist(dirpath):
     print('Decompressing ', file_name)
     subprocess.call(cmd)
 
+def download_food(dirpath):
+  data_dir = os.path.join(dirpath, 'food-101')
+  if os.path.exists(data_dir):
+    print('Found Food-101 - skip')
+    return
+  else:
+    os.mkdir(data_dir)
+  url_base = 'http://data.vision.ee.ethz.ch/cvl/food-101.tar.gz'
+  url = url_base.format(**locals())
+  print(url)
+  cmd = ['curl', '-L', url, '-o', 'food-101.tar.gz']
+  print('Downloading ', 'food-101.tar.gz')
+  subprocess.call(cmd)
+  cmd = ['tar', '-xzf', 'food-101.tar.gz']
+  print('Decompressing ', 'food-101.tar.gz')
+  subprocess.call(cmd)
+  cmd = ['rm', '-f', 'food-101.tar.gz']
+  print('Deleting ', 'food-101.tar.gz')
+  subprocess.call(cmd)
+
 def prepare_data_dir(path = './data'):
   if not os.path.exists(path):
     os.mkdir(path)
@@ -178,3 +198,5 @@ if __name__ == '__main__':
     download_lsun('./data')
   if 'mnist' in args.datasets:
     download_mnist('./data')
+  if any(name in args.datasets for name in ['food-101', 'food', 'food101']):
+    download_food('./data')
