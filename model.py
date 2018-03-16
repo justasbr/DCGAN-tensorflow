@@ -66,9 +66,7 @@ class DCGAN(object):
         self.checkpoint_dir = checkpoint_dir
 
         data_folder = os.path.join("./data", self.dataset_name,"train", self.input_fname_pattern)
-        print("folder", data_folder)
         self.data = glob(data_folder)
-        print("DATA", len(self.data))
         imreadImg = imread(self.data[0])
         if len(imreadImg.shape) >= 3:  # check if image is a non-grayscale image by checking channel number
             self.c_dim = imread(self.data[0]).shape[-1]
@@ -180,7 +178,7 @@ class DCGAN(object):
 
         sample_inputs_grayscale = [rgb2gray(color_img) for color_img in sample]
         sample_inputs_grayscale = np.array(sample_inputs_grayscale)
-        sample_inputs_grayscale = np.expand_dims(sample_inputs_grayscale, axis=3).astype(np.float32)  # (BSIZE,64,64,1)
+        sample_inputs_grayscale = np.expand_dims(sample_inputs_grayscale, axis=3).astype(np.float32) # (BSIZE,64,64,1)
 
         if (self.grayscale):
             sample_inputs_rgb = np.array(sample).astype(np.float32)[:, :, :, None]
@@ -197,10 +195,7 @@ class DCGAN(object):
             print(" [!] Checkpoint not found...")
 
         for epoch in xrange(config.epoch):
-            self.data = glob(os.path.join(
-                "./data", config.dataset, "train", self.input_fname_pattern))
             batch_idxs = min(len(self.data), config.train_size) // config.batch_size
-
             for idx in xrange(0, batch_idxs):
                 batch_files = self.data[idx * config.batch_size:(idx + 1) * config.batch_size]
                 batch = [
@@ -257,7 +252,6 @@ class DCGAN(object):
                 errG = self.g_loss.eval({self.z: batch_z,
                                          self.input_grayscale: batch_images_grayscale,
                                          self.input_rgb: batch_images})
-
                 counter += 1
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
                       % (epoch, idx, batch_idxs,
@@ -283,8 +277,9 @@ class DCGAN(object):
                     except Exception as e:
                         print("one pic error!...", e)
 
-                if np.mod(counter, 500) == 2:
-                    self.save(config.checkpoint_dir, counter)
+            print("Epoch " + str(epoch)+ " done, saving.")
+            self.save(config.checkpoint_dir, epoch)
+        print("ALL DONE")
 
     def discriminator(self, images_rgb, images_grayscale, reuse=False):
         with tf.variable_scope("discriminator", reuse=reuse) as scope:
