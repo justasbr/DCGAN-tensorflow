@@ -22,8 +22,6 @@ class DCGAN(object):
                  z_dim=100, gf_dim=64, df_dim=64, y_dim=None,
                  c_dim=3, dataset_name='default',
                  input_fname_pattern='*.jpg', checkpoint_dir=None, sample_dir=None):
-        if dataset_name == "imagenet":
-            input_fname_pattern = '*.JPEG'
 
         """
 
@@ -65,7 +63,7 @@ class DCGAN(object):
         self.input_fname_pattern = input_fname_pattern
         self.checkpoint_dir = checkpoint_dir
 
-        data_folder = os.path.join("./data", self.dataset_name,"train", self.input_fname_pattern)
+        data_folder = os.path.join("./data", self.dataset_name, "train", self.input_fname_pattern)
         print("folder", data_folder)
         self.data = glob(data_folder)
         print("DATA", len(self.data))

@@ -3,7 +3,7 @@ import scipy.misc
 import numpy as np
 
 from model import DCGAN
-from utils import pp, visualize, to_json, show_all_variables
+from utils import pp, validate, to_json, show_all_variables
 
 import tensorflow as tf
 
@@ -87,9 +87,7 @@ def main(_):
             if not dcgan.load(FLAGS.checkpoint_dir)[0]:
                 raise Exception("[!] Train a model first, then run test mode")
 
-        # Below is codes for visualization
-        OPTION = 1
-        visualize(sess, dcgan, FLAGS, OPTION)
+        validate(sess, dcgan, FLAGS)
 
 
 if __name__ == '__main__':
