@@ -3,7 +3,7 @@ import scipy.misc
 import numpy as np
 
 from model import DCGAN
-from utils import pp, validate, to_json, show_all_variables
+from utils import pp, validate, validate_labels, to_json, show_all_variables
 
 import tensorflow as tf
 
@@ -27,6 +27,9 @@ flags.DEFINE_boolean("train", False, "True for training, False for testing [Fals
 flags.DEFINE_boolean("crop", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
 flags.DEFINE_integer("generate_test_images", 1, "Number of images to generate during test. [100]")
+
+flags.DEFINE_boolean("labels", False, "Many labels to validate")
+flags.DEFINE_string("labels_dir", "food_labels", "Labaels dir name")
 FLAGS = flags.FLAGS
 
 
@@ -60,7 +63,8 @@ def main(_):
 		input_fname_pattern=FLAGS.input_fname_pattern,
 		crop=FLAGS.crop,
 		checkpoint_dir=FLAGS.checkpoint_dir,
-		sample_dir=FLAGS.sample_dir)
+		sample_dir=FLAGS.sample_dir,
+                config=FLAGS)
 
         show_all_variables()
 
@@ -69,9 +73,10 @@ def main(_):
         else:
             if not dcgan.load(FLAGS.checkpoint_dir)[0]:
                 raise Exception("[!] Train a model first, then run test mode")
-
-        validate(sess, dcgan, FLAGS)
-
+            if not FLAGS.labels:
+                validate(sess, dcgan, FLAGS)
+            else:
+                validate_labels(sess, dcgan, FLAGS, main_folder=FLAGS.labels_dir)
 
 if __name__ == '__main__':
     tf.app.run()

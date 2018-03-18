@@ -10,6 +10,7 @@ from skimage.color import rgb2gray
 import scipy.misc
 import numpy as np
 import os
+from scipy.misc.pilutil import bytescale
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
@@ -162,46 +163,120 @@ def to_json(output_path, *layers):
         layer_f.write(" ".join(lines.replace("'", "").split()))
 
 
-def validate(sess, dcgan, config):
-    data_folder = os.path.join("./data", config.dataset, "val", config.input_fname_pattern)
-    print("folder", data_folder)
-    data = glob(data_folder)
-    print("Validation data len", len(data))
+def validate(sess, dcgan, config, epoch=None, sampling=True, write_loss=True, val_data=None):
+    dataset = config.dataset if val_data is None else val_data
+    data_folder = os.path.join("./data", dataset, "val", config.input_fname_pattern)
+    image_files = glob(data_folder)
+    num_batches = int( len(image_files) / config.batch_size)
+    print("NumBatches", num_batches) 
+    data_len = num_batches * config.batch_size
+    print("Data len", data_len) 
+    data = load_images(config, image_files[:data_len])
 
-    batch_files = data[0:config.batch_size]
+    total_L1 = 0.0
+    total_L2 = 0.0
 
-    batch = [
-        get_image(batch_file,
-                  input_height=config.input_height,
-                  input_width=config.input_width,
-                  resize_height=config.output_height,
-                  resize_width=config.output_width,
-                  crop=config.crop,
-                  grayscale=config.grayscale) for batch_file in batch_files]
+    for batch_id in range(num_batches):
+        batch = get_data_batch(batch_id, config, data)
+        batch_rgb = make_rgb(batch)
+        batch_grayscale = make_grayscale(batch)
 
+        assert batch_rgb.shape == (config.batch_size, 64, 64, 3)
+        assert batch_grayscale.shape == (config.batch_size, 64, 64, 1)
+
+        samples = get_samples(batch_grayscale, dcgan, sess)
+        if sampling:
+            save_samples(batch_id, batch_rgb, config, dataset.split("/")[-1], epoch, samples)
+
+        L1, L2 = calc_losses(batch_rgb, samples)
+        total_L1 += L1
+        total_L2 += L2
+
+    loss_data = "%s\t%s\t%s\t%.2f\t%.2f\n" % (
+        dataset, config.train_size, epoch, total_L1 / data_len, total_L2 / data_len)
+    print("Data\tTsize\tepoch\tL1\tL2")
+    print(loss_data)
+    if write_loss:
+        with open("losses.out", "a") as f:
+            f.write(loss_data)
+
+
+def save_samples(batch_id, batch_rgb, config, dataset, epoch, samples):
+    if batch_id == 0:
+        real_path = "val_data/val_" + dataset + "_" + str(config.train_size) + "_real_" + str(epoch) + ".png"
+        gen_path = "val_data/val_" + dataset + "_" + str(config.train_size) + "_gen_" + str(epoch) + ".png"
+        imsave(batch_rgb, (10, 10), real_path)
+        imsave(samples, (10, 10), gen_path)
+
+
+def get_data_batch(batch_id, config, data):
+    start_id = batch_id * config.batch_size
+    end_id = start_id + config.batch_size
+    batch = data[start_id:end_id]
+    return batch
+
+
+def calc_losses(batch_rgb, samples):
+    diff = batch_rgb - samples
+    L1 = np.abs(diff)
+    L1 = L1.sum(axis=3)
+    L1 = L1.mean(axis=(1, 2))  # (batch_size, 1)
+    L2 = np.square(diff, dtype=np.float64)
+    L2 = L2.sum(axis=3)
+    L2 = L2.mean(axis=(1, 2))  # (batch_size, 1)
+    return L1.sum(), L2.sum()
+
+
+def load_images(config, image_files):
+    return [get_image(file_name,
+                      input_height=config.input_height,
+                      input_width=config.input_width,
+                      resize_height=config.output_height,
+                      resize_width=config.output_width,
+                      crop=config.crop,
+                      grayscale=False) for file_name in image_files]
+
+
+def get_samples(batch_grayscale, dcgan, sess):
+    samples = sess.run(
+        dcgan.sampler,
+        feed_dict={dcgan.input_grayscale: batch_grayscale}
+    )
+    samples[samples < -1] = -1
+    samples[samples > 1] = 1
+    samples = inverse_transform(samples)
+    samples *= 255
+    return samples
+
+
+def make_rgb(batch):
     batch_rgb = np.array(batch).astype(np.float32)  # (BSIZE, 64,64,3)
 
+    batch_rgb = inverse_transform(batch_rgb)
+    batch_rgb *= 255
+    batch_rgb = batch_rgb.astype(np.uint8)
+
+    return batch_rgb
+
+
+def make_grayscale(batch):
     batch_grayscale = [rgb2gray(color_img) for color_img in batch]
     batch_grayscale = np.array(batch_grayscale)
     batch_grayscale = np.expand_dims(batch_grayscale, axis=3).astype(np.float32)  # (BSIZE,64,64,1)
-
-    assert batch_rgb.shape == (config.batch_size, 64, 64, 3)
-    assert batch_grayscale.shape == (config.batch_size, 64, 64, 1)
-
-    samples = sess.run(
-        dcgan.sampler,
-        feed_dict={
-            dcgan.input_grayscale: batch_grayscale,
-            dcgan.z: get_noise(config),
-            dcgan.input_rgb: batch_rgb
-        },
-    )
-
-    print(samples)
+    return batch_grayscale
 
 
-def get_noise(config):
-    return np.random.uniform(-1, 1, [config.batch_size, config.z_dim]).astype(np.float32)
+def validate_labels(sess, dcgan, config, main_folder):
+    label_dirs = glob(os.path.join("./data", main_folder, "*"))
+    print(label_dirs)
+    label_dirs = list(filter(lambda n: os.path.isdir(n), label_dirs))
+    print(label_dirs)
+    labels = [label_dir.split("/")[-1] for label_dir in label_dirs]
+    print(labels)
+    for label in labels:
+        print("Validating label: ", label)
+        label_folder = main_folder + "/" + label
+        validate(sess, dcgan, config, sampling=True, write_loss=False, val_data=label_folder)
 
 
 def image_manifold_size(num_images):
