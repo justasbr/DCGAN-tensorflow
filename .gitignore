@@ -1,3 +1,7 @@
+run_all.sh
+losses.out
+val_data
+checkpoint_*
 .idea
 # Data
 data
