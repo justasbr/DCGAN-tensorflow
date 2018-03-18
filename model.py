@@ -2,6 +2,7 @@ from __future__ import division
 import os
 import time
 import math
+import random
 from glob import glob
 import tensorflow as tf
 import numpy as np
@@ -21,7 +22,7 @@ class DCGAN(object):
                  batch_size=42, sample_num=42, output_height=64, output_width=64,
                  z_dim=100, gf_dim=64, df_dim=64, y_dim=None,
                  c_dim=3, dataset_name='default',
-                 input_fname_pattern='*.jpg', checkpoint_dir=None, sample_dir=None):
+                 input_fname_pattern='*.jpg', checkpoint_dir=None, sample_dir=None, config=None):
 
         """
 
@@ -144,7 +145,7 @@ class DCGAN(object):
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
 
-        self.saver = tf.train.Saver()
+        self.saver = tf.train.Saver(max_to_keep=2)
 
     def train(self, config):
         d_train_opt = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
@@ -194,6 +195,7 @@ class DCGAN(object):
 
         for epoch in xrange(config.epoch):
             batch_idxs = min(len(self.data), config.train_size) // config.batch_size
+            random.shuffle(self.data) 
             for idx in xrange(0, batch_idxs):
                 batch_files = self.data[idx * config.batch_size:(idx + 1) * config.batch_size]
                 batch = [
@@ -251,11 +253,12 @@ class DCGAN(object):
                                          self.input_grayscale: batch_images_grayscale,
                                          self.input_rgb: batch_images})
                 counter += 1
-                print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
-                      % (epoch, idx, batch_idxs,
-                         time.time() - start_time, errD_fake + errD_real, errG))
+                if np.mod(counter, 10) == 1:
+                    print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
+                          % (epoch, idx, batch_idxs,
+                             time.time() - start_time, errD_fake + errD_real, errG))
 
-                if np.mod(counter, 20) == 1:
+                if np.mod(counter, 50000000) == 1:
                     try:
                         samples, d_loss, g_loss = self.sess.run(
                             [self.sampler, self.d_loss, self.g_loss],
@@ -277,6 +280,7 @@ class DCGAN(object):
 
             print("Epoch " + str(epoch)+ " done, saving.")
             self.save(config.checkpoint_dir, epoch)
+            validate(self.sess, self, config, epoch=epoch)
         print("ALL DONE")
 
     def discriminator(self, images_rgb, images_grayscale, reuse=False):
